@@ -1,0 +1,44 @@
+name: Issue Completeness
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  analyze:
+    name: AI Issue Completeness
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Copilot CLI
+        run: npm install -g @github/copilot
+
+      - name: Analyze issue with Copilot
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          prompt="$(printf '%s\n' \
+            'You are a GitHub issue assistant. Analyze this issue for completeness.' \
+            'Give concise, helpful suggestions, ask clarifying questions, and identify missing information.' \
+            'Return ready-to-use Markdown for an issue comment, without code fences. Sign off as AI assistant.' \
+            '' \
+            "New issue opened by: $ISSUE_AUTHOR" \
+            "Title: $ISSUE_TITLE" \
+            'Body:' \
+            '---' \
+            "$ISSUE_BODY" \
+            '---')"
+          copilot -p "$prompt" -s --model claude-sonnet-5 --no-ask-user > issue-comment.md
+
+      - name: Comment results on the issue
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body-path: issue-comment.md
